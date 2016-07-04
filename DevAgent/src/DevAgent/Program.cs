@@ -1,10 +1,5 @@
 ﻿using System;
-using System.IO;
-using System.Linq;
-using System.Net;
-using System.Net.Sockets;
 using System.Threading;
-using System.Threading.Tasks;
 
 namespace DevAgent
 {
@@ -17,7 +12,7 @@ namespace DevAgent
                 throw new ArgumentNullException(nameof(args));
             }
 
-            if (args.Length != 0)
+            if (args.Length == 0)
             {
                 throw new ArgumentException(null, nameof(args));
             }
@@ -38,40 +33,47 @@ namespace DevAgent
                     // Don't terminate the process immediately, wait for the Main thread to exit gracefully.
                     eventArgs.Cancel = true;
                 };
+
+                if (remoteUri != null)
+                {
+                    using (var messageHub = new MessageHub(remoteUri))
+                    {
+                        messageHub.WaitUntilConnectedAsync().Wait();
+
+                        messageHub.MessageReceived += (s, e) =>
+                        {
+                            Console.WriteLine($"Received message with method '{e.Method}' and id '{e.Id}'");
+                        };
+
+                        while (!cts.Token.IsCancellationRequested)
+                        {
+                            messageHub.SendMessage(new Message() { Id = Guid.NewGuid().ToString(), Method = "SendFile" });
+
+                            Thread.Sleep(1000);
+                        }
+                    }
+                }
+
+                if (localPort != 0)
+                {
+                    using (var messageHub = new MessageHub(localPort))
+                    {
+                        messageHub.WaitUntilConnectedAsync().Wait();
+
+                        messageHub.MessageReceived += (s, e) =>
+                        {
+                            Console.WriteLine($"Received message with method '{e.Method}' and id '{e.Id}'");
+                        };
+
+                        while (!cts.Token.IsCancellationRequested)
+                        {
+                            messageHub.SendMessage(new Message() { Id = Guid.NewGuid().ToString(), Method = "SendFile" });
+
+                            Thread.Sleep(1000);
+                        }
+                    }
+                }
             }
-        }
-
-        private static Socket OpenListeningSocket(int localPort)
-        {
-            var socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-            socket.Bind(new IPEndPoint(IPAddress.Any, localPort));
-            socket.Listen(1);
-
-            return socket;
-        }
-
-        private static async Task<Stream> AcceptSocketAsync(Socket listeningSocket, CancellationToken cancellationToken)
-        {
-            var socket = await listeningSocket.AcceptAsync();
-
-            return new NetworkStream(socket, ownsSocket: true);
-        }
-
-        private static async Task<Stream> OpenSocketAsync(Uri remoteUri, CancellationToken cancellationToken)
-        {
-            var socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-            socket.Bind(new IPEndPoint(IPAddress.Any, 0));
-
-            var remoteIPAddress = (await Dns.GetHostAddressesAsync(remoteUri.Host)).FirstOrDefault();
-
-            if (remoteIPAddress == null)
-            {
-                throw new InvalidOperationException();
-            }
-
-            await socket.ConnectAsync(remoteIPAddress, remoteUri.Port);
-
-            return new NetworkStream(socket, ownsSocket: true);
         }
     }
 }

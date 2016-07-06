@@ -1,11 +1,12 @@
 ﻿using Newtonsoft.Json;
 using System;
 using System.IO;
-using System.Text;
-using System.Net.Sockets;
-using System.Net;
-using System.Threading.Tasks;
 using System.Linq;
+using System.Net;
+using System.Net.Sockets;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace DevAgent
 {
@@ -16,11 +17,14 @@ namespace DevAgent
         private BinaryReader _reader;
         private BinaryWriter _writer;
         private Task _intializationTask;
+        private CancellationToken _cancellationToken;
 
         public event EventHandler<Message> MessageReceived;
 
-        public MessageHub(int localPort)
+        public MessageHub(int localPort, CancellationToken cancellationToken)
         {
+            _cancellationToken = cancellationToken;
+
             _listeningSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
             _listeningSocket.Bind(new IPEndPoint(IPAddress.Any, localPort));
             _listeningSocket.Listen(1);
@@ -32,8 +36,10 @@ namespace DevAgent
             });
         }
 
-        public MessageHub(Uri remoteUri)
+        public MessageHub(Uri remoteUri, CancellationToken cancellationToken)
         {
+            _cancellationToken = cancellationToken;
+
             var socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
             socket.Bind(new IPEndPoint(IPAddress.Any, 0));
 
@@ -67,6 +73,8 @@ namespace DevAgent
 
         public void SendMessage(Message message)
         {
+            _cancellationToken.ThrowIfCancellationRequested();
+
             string payload = JsonConvert.SerializeObject(message);
 
             _writer.Write(payload);
@@ -83,19 +91,15 @@ namespace DevAgent
 
         private void OnMessageReceived()
         {
-            try
+            while (true)
             {
-                while (true)
-                {
-                    string payload = _reader.ReadString();
+                _cancellationToken.ThrowIfCancellationRequested();
 
-                    var message = JsonConvert.DeserializeObject<Message>(payload);
+                string payload = _reader.ReadString();
 
-                    MessageReceived?.Invoke(this, message);
-                }
-            }
-            catch (ObjectDisposedException)
-            {
+                var message = JsonConvert.DeserializeObject<Message>(payload);
+
+                MessageReceived?.Invoke(this, message);
             }
         }
     }

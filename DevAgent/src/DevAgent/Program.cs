@@ -36,40 +36,56 @@ namespace DevAgent
 
                 if (remoteUri != null)
                 {
-                    using (var messageHub = new MessageHub(remoteUri))
+                    using (var messageHub = new MessageHub(remoteUri, cts.Token))
                     {
                         messageHub.WaitUntilConnectedAsync().Wait();
 
-                        messageHub.MessageReceived += (s, e) =>
+                        messageHub.MessageReceived += (sender, message) =>
                         {
-                            Console.WriteLine($"Received message with method '{e.Method}' and id '{e.Id}'");
+                            Console.WriteLine($"Received message with method '{message.Method}' and id '{message.Id}'");
                         };
 
                         while (!cts.Token.IsCancellationRequested)
                         {
-                            messageHub.SendMessage(new Message() { Id = Guid.NewGuid().ToString(), Method = "SendFile" });
+                            try
+                            {
+                                messageHub.SendMessage(new Message() { Id = Guid.NewGuid().ToString(), Method = "SendFile" });
 
-                            Thread.Sleep(1000);
+                                Thread.Sleep(1000);
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine(ex.ToString());
+                                return;
+                            }
                         }
                     }
                 }
 
                 if (localPort != 0)
                 {
-                    using (var messageHub = new MessageHub(localPort))
+                    using (var messageHub = new MessageHub(localPort, cts.Token))
                     {
                         messageHub.WaitUntilConnectedAsync().Wait();
 
-                        messageHub.MessageReceived += (s, e) =>
+                        messageHub.MessageReceived += (sender, message) =>
                         {
-                            Console.WriteLine($"Received message with method '{e.Method}' and id '{e.Id}'");
+                            Console.WriteLine($"Received message with method '{message.Method}' and id '{message.Id}'");
                         };
 
                         while (!cts.Token.IsCancellationRequested)
                         {
-                            messageHub.SendMessage(new Message() { Id = Guid.NewGuid().ToString(), Method = "SendFile" });
+                            try
+                            {
+                                messageHub.SendMessage(new Message() { Id = Guid.NewGuid().ToString(), Method = "SendFile" });
 
-                            Thread.Sleep(1000);
+                                Thread.Sleep(1000);
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine(ex.ToString());
+                                return;
+                            }
                         }
                     }
                 }

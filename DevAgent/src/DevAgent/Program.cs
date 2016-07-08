@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Threading;
-using System.Threading.Tasks;
 
 namespace DevAgent
 {
@@ -37,25 +36,25 @@ namespace DevAgent
                     eventArgs.Cancel = true;
                 };
 
-                FileSynchronizer fileSync = null;
-
                 if (remoteUri != null)
                 {
-                    Task.Run(() => fileSync = new FileSynchronizer(localRootDirectory, new MessageHub(remoteUri, cts.Token)));
-
-                    while (!cts.Token.IsCancellationRequested)
+                    using (var fileSync = new FileSynchronizer(localRootDirectory, new MessageHub(remoteUri, cts.Token)))
                     {
-                        Thread.Sleep(100);
+                        while (!cts.Token.IsCancellationRequested)
+                        {
+                            Thread.Sleep(100);
+                        }
                     }
                 }
 
                 if (localPort != 0)
                 {
-                    Task.Run(() => fileSync = new FileSynchronizer(localRootDirectory, new MessageHub(localPort, cts.Token)));
-
-                    while (!cts.Token.IsCancellationRequested)
+                    using (var fileSync = new FileSynchronizer(localRootDirectory, new MessageHub(localPort, cts.Token)))
                     {
-                        Thread.Sleep(100);
+                        while (!cts.Token.IsCancellationRequested)
+                        {
+                            Thread.Sleep(100);
+                        }
                     }
                 }
             }

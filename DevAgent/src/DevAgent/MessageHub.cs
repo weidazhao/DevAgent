@@ -19,7 +19,7 @@ namespace DevAgent
         private Task _intializationTask;
         private CancellationToken _cancellationToken;
 
-        public event EventHandler<Message> MessageReceived;
+        public event EventHandler<MessageEventArgs> MessageReceived;
 
         public MessageHub(int localPort, CancellationToken cancellationToken)
         {
@@ -87,6 +87,8 @@ namespace DevAgent
             _writer = new BinaryWriter(_stream, Encoding.UTF8, leaveOpen: true);
 
             Task.Run(() => OnMessageReceived());
+
+            Console.WriteLine("Message hub initialized.");
         }
 
         private void OnMessageReceived()
@@ -99,7 +101,7 @@ namespace DevAgent
 
                 var message = JsonConvert.DeserializeObject<Message>(payload);
 
-                MessageReceived?.Invoke(this, message);
+                MessageReceived?.Invoke(this, new MessageEventArgs(message));
             }
         }
     }

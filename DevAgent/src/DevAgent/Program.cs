@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace DevAgent
 {
@@ -23,6 +24,8 @@ namespace DevAgent
             int localPort;
             int.TryParse(args[0], out localPort);
 
+            string localRootDirectory = args[1];
+
             using (var cts = new CancellationTokenSource())
             {
                 Console.CancelKeyPress += (sender, eventArgs) =>
@@ -34,59 +37,25 @@ namespace DevAgent
                     eventArgs.Cancel = true;
                 };
 
+                FileSynchronizer fileSync = null;
+
                 if (remoteUri != null)
                 {
-                    using (var messageHub = new MessageHub(remoteUri, cts.Token))
+                    Task.Run(() => fileSync = new FileSynchronizer(localRootDirectory, new MessageHub(remoteUri, cts.Token)));
+
+                    while (!cts.Token.IsCancellationRequested)
                     {
-                        messageHub.WaitUntilConnectedAsync().Wait();
-
-                        messageHub.MessageReceived += (sender, message) =>
-                        {
-                            Console.WriteLine($"Received message with method '{message.Method}' and id '{message.Id}'");
-                        };
-
-                        while (!cts.Token.IsCancellationRequested)
-                        {
-                            try
-                            {
-                                messageHub.SendMessage(new Message() { Id = Guid.NewGuid().ToString(), Method = "SendFile" });
-
-                                Thread.Sleep(1000);
-                            }
-                            catch (Exception ex)
-                            {
-                                Console.WriteLine(ex.ToString());
-                                return;
-                            }
-                        }
+                        Thread.Sleep(100);
                     }
                 }
 
                 if (localPort != 0)
                 {
-                    using (var messageHub = new MessageHub(localPort, cts.Token))
+                    Task.Run(() => fileSync = new FileSynchronizer(localRootDirectory, new MessageHub(localPort, cts.Token)));
+
+                    while (!cts.Token.IsCancellationRequested)
                     {
-                        messageHub.WaitUntilConnectedAsync().Wait();
-
-                        messageHub.MessageReceived += (sender, message) =>
-                        {
-                            Console.WriteLine($"Received message with method '{message.Method}' and id '{message.Id}'");
-                        };
-
-                        while (!cts.Token.IsCancellationRequested)
-                        {
-                            try
-                            {
-                                messageHub.SendMessage(new Message() { Id = Guid.NewGuid().ToString(), Method = "SendFile" });
-
-                                Thread.Sleep(1000);
-                            }
-                            catch (Exception ex)
-                            {
-                                Console.WriteLine(ex.ToString());
-                                return;
-                            }
-                        }
+                        Thread.Sleep(100);
                     }
                 }
             }

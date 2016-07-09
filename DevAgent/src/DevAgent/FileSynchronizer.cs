@@ -38,20 +38,20 @@ namespace DevAgent
 
         private void OnFileChanged(object sender, FileSystemEventArgs e)
         {
+            if (e.ChangeType != WatcherChangeTypes.Changed)
+            {
+                return;
+            }
+
             lock (_lockObj)
             {
-                if (e.ChangeType != WatcherChangeTypes.Changed)
-                {
-                    return;
-                }
-
                 string relativePath = Path.GetFullPath(e.FullPath).Substring(_localRootDirectory.Length).Replace('\\', '/').TrimStart('/');
 
                 var message = new Message()
                 {
                     Id = relativePath,
                     Method = "ChangeFile",
-                    Content = RunWithRetries(() => File.ReadAllBytes(e.FullPath))
+                    Content = InvokeWithRetries(() => File.ReadAllBytes(e.FullPath))
                 };
 
                 _messageHub.SendMessage(message);
@@ -62,35 +62,31 @@ namespace DevAgent
 
         private void OnMessageReceived(object sender, MessageEventArgs e)
         {
+            if (e.Message.Method != "ChangeFile")
+            {
+                return;
+            }
+
             lock (_lockObj)
             {
-                var message = e.Message;
-
-                if (message.Method != "ChangeFile")
-                {
-                    return;
-                }
-
-                string relativePath = message.Id;
+                string relativePath = e.Message.Id;
 
                 string fullPath = Path.GetFullPath(Path.Combine(_localRootDirectory, relativePath));
 
-                var content = RunWithRetries(() => File.ReadAllBytes(fullPath));
+                var content = InvokeWithRetries(() => File.ReadAllBytes(fullPath));
 
-                if (!Enumerable.SequenceEqual(RunWithRetries(() => File.ReadAllBytes(fullPath)), message.Content))
+                if (!Enumerable.SequenceEqual(InvokeWithRetries(() => File.ReadAllBytes(fullPath)), e.Message.Content))
                 {
-                    RunWithRetries(() => RunWithRetries(() => File.WriteAllBytes(fullPath, message.Content)));
+                    InvokeWithRetries(() => File.WriteAllBytes(fullPath, e.Message.Content));
                 }
 
                 Console.WriteLine("OnMessageReceived");
             }
         }
 
-        private static T RunWithRetries<T>(Func<T> func)
+        private static T InvokeWithRetries<T>(Func<T> func, int maxRetries = 10)
         {
-            const int MaxRetries = 10;
-
-            for (int retry = 0; retry < 10; retry++)
+            for (int retry = 0; retry < maxRetries; retry++)
             {
                 try
                 {
@@ -98,7 +94,7 @@ namespace DevAgent
                 }
                 catch
                 {
-                    if (retry == MaxRetries - 1)
+                    if (retry == maxRetries - 1)
                     {
                         throw;
                     }
@@ -110,11 +106,9 @@ namespace DevAgent
             return default(T);
         }
 
-        private static void RunWithRetries(Action action)
+        private static void InvokeWithRetries(Action action, int maxRetries = 10)
         {
-            const int MaxRetries = 10;
-
-            for (int retry = 0; retry < 10; retry++)
+            for (int retry = 0; retry < maxRetries; retry++)
             {
                 try
                 {
@@ -122,7 +116,7 @@ namespace DevAgent
                 }
                 catch
                 {
-                    if (retry == MaxRetries - 1)
+                    if (retry == maxRetries - 1)
                     {
                         throw;
                     }
